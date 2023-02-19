@@ -3,6 +3,8 @@ from typing import List, Optional
 from fastapi import Depends
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from passlib.context import CryptContext
+from typing import Optional
 
 from exercise.db.dependencies import get_db_session
 from exercise.db.models.admin_model import AdminModel
@@ -10,17 +12,43 @@ from exercise.db.models.admin_model import AdminModel
 
 class AdminDAO:
     """Class for accessing admin table."""
-
+    
     def __init__(self, session: AsyncSession = Depends(get_db_session)):
         self.session = session
+        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+    def verify_password(self, plain_password: str, hashed_password: str) -> bool:
+        """
+        Verify password.
 
-    async def create_admin_model(self, name: str) -> None:
+        :param plain_password: plain password.
+        :param hashed_password: hashed password.
+        :return: True if password is correct, False otherwise.
+        """
+        return self.pwd_context.verify(plain_password, hashed_password)
+    
+    def get_hashed_password(self, password: str) -> str:
+        """
+        Get hashed password.
+
+        :param password: password.
+        :return: hashed password.
+        """
+        return self.pwd_context.hash(password)
+
+    async def create_admin_model(self, name: str, email: str, password: str, avatar: Optional[bytes]) -> None:
         """
         Add single admin to session.
 
         :param name: name of a admin.
         """
-        self.session.add(AdminModel(name=name))
+        self.session.add(
+            AdminModel(
+                name=name,
+                email=email,
+                hashed_password=self.get_hashed_password(password),
+                avatar=avatar)
+            )
 
     async def get_all_admin(self, limit: int, offset: int) -> List[AdminModel]:
         """
