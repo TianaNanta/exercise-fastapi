@@ -1,0 +1,76 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: exercise
+  name: exercise-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: exercise-app
+  template:
+    metadata:
+      labels:
+        app: exercise-app
+    spec:
+      containers:
+      - name: app
+        image: exercise:latest
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: api-port
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        env:
+        - name: EXERCISE_HOST
+          value: "0.0.0.0"
+        - name: EXERCISE_WORKERS_COUNT
+          value: "10"
+        - name: EXERCISE_DB_HOST
+          value: "exercise-db-service"
+        resources:
+          limits:
+            memory: "200Mi"
+            cpu: "100m"
+        ports:
+        - containerPort: 8000
+          name: api-port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: exercise
+  name: exercise-app-service
+spec:
+  selector:
+    app: exercise-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: api-port
+    name: api-port
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: exercise-app
+  namespace: exercise
+  labels:
+    name: exercise-app
+spec:
+  rules:
+  - host: exercise.local
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: exercise-app-service
+            port:
+              name: api-port
+
+---

@@ -1,0 +1,76 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: exercise
+  name: exercise-db
+spec:
+  selector:
+    matchLabels:
+      app: exercise-db
+  template:
+    metadata:
+      labels:
+        app: exercise-db
+    spec:
+      containers:
+      - name: database
+        image: bitnami/mysql:8.0.30
+        resources:
+          limits:
+            memory: "300Mi"
+            cpu: "200m"
+        env:
+        - name: MYSQL_PASSWORD
+          value: "exercise"
+        - name: MYSQL_USER
+          value: "exercise"
+        - name: MYSQL_DATABASE
+          value: "exercise"
+        - name: ALLOW_EMPTY_PASSWORD
+          value: "yes"
+        ports:
+        - containerPort: 3306
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: exercise
+  name: "exercise-db-service"
+spec:
+  selector:
+    app: exercise-db
+  ports:
+  - port: 3306
+    targetPort: 3306
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: exercise
+  name: exercise-migrator
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      containers:
+      - name: migrator
+        image: exercise:latest
+        command:
+        - "alembic"
+        - "upgrade"
+        - "head"
+        resources:
+          limits:
+            memory: "200Mi"
+            cpu: "250m"
+        env:
+        - name: "EXERCISE_DB_HOST"
+          value: "exercise-db-service"
+      initContainers:
+      - name: wait-for-db
+        image: toschneck/wait-for-it:latest
+        command: ["./wait-for-it.sh", "-t", "60", "exercise-db-service:3306"]
+      restartPolicy: Never
+
+---

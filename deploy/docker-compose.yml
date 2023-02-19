@@ -1,0 +1,58 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./deploy/Dockerfile
+    image: exercise:${EXERCISE_VERSION:-latest}
+    restart: always
+    env_file:
+    - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      EXERCISE_HOST: 0.0.0.0
+      EXERCISE_DB_HOST: exercise-db
+      EXERCISE_DB_PORT: 3306
+      EXERCISE_DB_USER: exercise
+      EXERCISE_DB_PASS: exercise
+      EXERCISE_DB_BASE: exercise
+
+  db:
+    image: bitnami/mysql:8.0.30
+    hostname: exercise-db
+    restart: always
+    environment:
+      MYSQL_ROOT_USER: "exercise"
+      MYSQL_ROOT_PASSWORD: "exercise"
+      MYSQL_DATABASE: "exercise"
+      MYSQL_AUTHENTICATION_PLUGIN: "mysql_native_password"
+    healthcheck:
+      test: mysqladmin ping -h localhost
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    volumes:
+    - exercise-db-data:/bitnami/mysql/data
+
+  migrator:
+    image: exercise:${EXERCISE_VERSION:-latest}
+    restart: "no"
+    command: alembic upgrade head
+    environment:
+      EXERCISE_DB_HOST: exercise-db
+      EXERCISE_DB_PORT: 3306
+      EXERCISE_DB_USER: exercise
+      EXERCISE_DB_PASS: exercise
+      EXERCISE_DB_BASE: exercise
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+
+volumes:
+  exercise-db-data:
+    name: exercise-db-data
