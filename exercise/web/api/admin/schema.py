@@ -1,21 +1,33 @@
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 
-class DummyModelDTO(BaseModel):
+class AdminBase(BaseModel):
     """
-    DTO for dummy models.
+    Pydantic base model for admin models.
 
-    It returned when accessing dummy models from the API.
+    It returned when accessing admin models from the API.
     """
 
-    id: int
-    name: str
+    name: Optional[str]
+    email: EmailStr
 
     class Config:
         orm_mode = True
 
 
-class DummyModelInputDTO(BaseModel):
-    """DTO for creating new dummy model."""
+class AdminCreate(AdminBase):
+    """Model for creating new admin model."""
 
-    name: str
+    password: str
+    
+class AdminShow(AdminBase):
+    """Model for showing admin model."""
+
+    id: int
+    avatar: Optional[bytes]
+    date_creation: Optional[datetime]
+    
+    class Config:
+        orm_mode = True

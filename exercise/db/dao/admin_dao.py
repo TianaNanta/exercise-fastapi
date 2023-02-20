@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import Depends
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from passlib.context import CryptContext
 from typing import Optional
@@ -36,7 +36,7 @@ class AdminDAO:
         """
         return self.pwd_context.hash(password)
 
-    async def create_admin_model(self, name: str, email: str, password: str, avatar: Optional[bytes]) -> None:
+    async def create_admin_model(self, name: str, email: str, password: str) -> None:
         """
         Add single admin to session.
 
@@ -46,8 +46,7 @@ class AdminDAO:
             AdminModel(
                 name=name,
                 email=email,
-                hashed_password=self.get_hashed_password(password),
-                avatar=avatar)
+                hashed_password=self.get_hashed_password(password))
             )
 
     async def get_all_admin(self, limit: int, offset: int) -> List[AdminModel]:
@@ -119,3 +118,40 @@ class AdminDAO:
         :param hashed_password: hashed password of admin.
         """
         await self.session.execute(update(AdminModel).where(AdminModel.id == admin_id).values(hashed_password=hashed_password))
+        
+    # function to delete admin
+    async def delete_admin(self, admin_id: int) -> None:
+        """
+        Delete admin.
+
+        :param admin_id: id of admin.
+        """
+        await self.session.execute(delete(AdminModel).where(AdminModel.id == admin_id))
+        
+    # function to get admin by id
+    async def get_admin_by_id(self, admin_id: int) -> AdminModel:
+        """
+        Get admin by id.
+
+        :param admin_id: id of admin.
+        :return: admin model.
+        """
+        raw_admin = await self.session.execute(
+            select(AdminModel).where(AdminModel.id == admin_id),
+        )
+
+        return raw_admin.scalars().first()
+    
+    # function to get admin by email
+    async def get_admin_by_email(self, email: str) -> AdminModel:
+        """
+        Get admin by email.
+
+        :param email: email of admin.
+        :return: admin model.
+        """
+        raw_admin = await self.session.execute(
+            select(AdminModel).where(AdminModel.email == email),
+        )
+
+        return raw_admin.scalars().first()  
