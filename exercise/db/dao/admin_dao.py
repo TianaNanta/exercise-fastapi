@@ -14,6 +14,9 @@ from exercise.settings import settings
 from exercise.web.api.admin.schema import AdminShow, TokenData
 
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/admin/login")
+
 class AdminDAO:
     """Class for accessing admin table."""
     
@@ -21,11 +24,9 @@ class AdminDAO:
     ALGORITHM = settings.algorithm
     ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_time
     
-    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/admin/login")
     
     def __init__(self, session: AsyncSession = Depends(get_db_session)):
         self.session = session
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """
@@ -35,7 +36,7 @@ class AdminDAO:
         :param hashed_password: hashed password.
         :return: True if password is correct, False otherwise.
         """
-        return self.pwd_context.verify(plain_password, hashed_password)
+        return pwd_context.verify(plain_password, hashed_password)
     
     def get_hashed_password(self, password: str) -> str:
         """
@@ -44,7 +45,7 @@ class AdminDAO:
         :param password: password.
         :return: hashed password.
         """
-        return self.pwd_context.hash(password)
+        return pwd_context.hash(password)
     
     async def get_admin(self, email: str):
         """
