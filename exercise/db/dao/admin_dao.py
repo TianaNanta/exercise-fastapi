@@ -1,17 +1,27 @@
+from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from passlib.context import CryptContext
-from typing import Optional
 
 from exercise.db.dependencies import get_db_session
 from exercise.db.models.admin_model import AdminModel
+from exercise.settings import settings
+from exercise.web.api.admin.schema import AdminShow, TokenData
 
 
 class AdminDAO:
     """Class for accessing admin table."""
+    
+    SECRET_KEY = settings.secret_key
+    ALGORITHM = settings.algorithm
+    ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_time
+    
+    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/admin/login")
     
     def __init__(self, session: AsyncSession = Depends(get_db_session)):
         self.session = session
@@ -35,6 +45,87 @@ class AdminDAO:
         :return: hashed password.
         """
         return self.pwd_context.hash(password)
+    
+    async def get_admin(self, email: str):
+        """
+        Get admin model by email.
+
+        :param email: email of admin.
+        :return: admin model.
+        """
+        raw_admin = await self.session.execute(
+            select(AdminModel).where(AdminModel.email == email),
+        )
+        
+        return raw_admin.scalars().first()
+    
+    async def authenticate_admin(self, email: str, password: str):
+        """
+        Authenticate admin.
+
+        :param email: email of admin.
+        :param password: password of admin.
+        :return: admin model.
+        """
+        admin = await self.get_admin(email)
+        if not admin:
+            return False
+        if not self.verify_password(password, admin.hashed_password):
+            return False
+        return admin
+    
+    async def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
+        """
+        Create access token.
+
+        :param data: data for token.
+        :param expires_delta: timedelta for token expiration.
+        :return: access token.
+        """
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.utcnow() + expires_delta
+        else:
+            expire = datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
+        return encoded_jwt
+    
+    async def get_current_admin(self, token: str = Depends(oauth2_scheme)):
+        """
+        Get current admin.
+
+        :param token: token of admin.
+        :return: admin model.
+        """
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        try:
+            payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
+            email: str = payload.get("sub")
+            if email is None:
+                raise credentials_exception
+            token_data = TokenData(email=email)
+        except JWTError:
+            raise credentials_exception
+        admin = await self.get_admin(email=token_data.email)
+        if admin is None:
+            raise credentials_exception
+        return await admin
+    
+    async def get_current_active_admin(current_admin: AdminShow = Depends(get_current_admin)):
+        """
+        Get current active admin.
+
+        :param current_admin: admin model.
+        :return: admin model.
+        """
+        if current_admin.disabled:
+            raise HTTPException(status_code=400, detail="Inactive user")
+        return await current_admin
 
     async def create_admin_model(self, name: str, email: str, password: str) -> None:
         """

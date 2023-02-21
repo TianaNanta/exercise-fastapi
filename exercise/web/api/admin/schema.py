@@ -28,6 +28,15 @@ class AdminShow(AdminBase):
     id: int
     avatar: Optional[bytes]
     date_creation: Optional[datetime]
+    disabled: Optional[bool]
     
     class Config:
         orm_mode = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: str | None = None

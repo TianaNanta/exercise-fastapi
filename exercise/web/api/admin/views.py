@@ -1,12 +1,17 @@
+from datetime import timedelta
 from typing import List
 
-from fastapi import APIRouter, Depends, File
+from fastapi import APIRouter, Depends, File, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 
 from exercise.db.dao.admin_dao import AdminDAO
 from exercise.db.models.admin_model import AdminModel
-from exercise.web.api.admin.schema import AdminBase, AdminCreate, AdminShow
+from exercise.settings import settings
+from exercise.web.api.admin.schema import AdminBase, AdminCreate, AdminShow, Token
 
 router = APIRouter()
+
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_time
 
 """ GET METHOD """
 
@@ -26,6 +31,12 @@ async def get_admin_models(
     """
     return await admin_dao.get_all_admin(limit=limit, offset=offset)
 
+@router.get("/me", response_model=AdminShow)
+async def read_admin_me(
+    current_admin: AdminShow = Depends(AdminDAO.get_current_active_admin),
+    ):
+    return current_admin
+
 
 """ POST METHOD """
 
@@ -41,6 +52,23 @@ async def create_admin_model(
     :param admin_dao: DAO for admin models.
     """
     await admin_dao.create_admin_model(**new_admin_object.dict())
+    
+@router.post("/login", response_model=Token)
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    admin_dao: AdminDAO = Depends(),
+    ):
+    user = await admin_dao.authenticate_admin(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = await admin_dao.create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires)
+    return {"access_token": access_token, "token_type": "bearer"}
     
 
 """ PUT METHOD """
