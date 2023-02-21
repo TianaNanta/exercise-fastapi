@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, File, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from exercise.db.dao.admin_dao import AdminDAO
+from exercise.db.dao.admin_dao import AdminDAO, get_current_active_admin
 from exercise.db.models.admin_model import AdminModel
 from exercise.settings import settings
 from exercise.web.api.admin.schema import AdminBase, AdminCreate, AdminShow, Token
@@ -33,7 +33,7 @@ async def get_admin_models(
 
 @router.get("/me", response_model=AdminShow)
 async def read_admin_me(
-    current_admin: AdminShow = Depends(AdminDAO.get_current_active_admin),
+    current_admin: AdminShow = Depends(get_current_active_admin),
     ):
     return current_admin
 

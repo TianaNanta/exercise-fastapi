@@ -17,13 +17,14 @@ from exercise.web.api.admin.schema import AdminShow, TokenData
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/admin/login")
 
+SECRET_KEY = settings.secret_key
+ALGORITHM = settings.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_time
+
+
 class AdminDAO:
     """Class for accessing admin table."""
-    
-    SECRET_KEY = settings.secret_key
-    ALGORITHM = settings.algorithm
-    ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_time
-    
+        
     
     def __init__(self, session: AsyncSession = Depends(get_db_session)):
         self.session = session
@@ -87,46 +88,10 @@ class AdminDAO:
         if expires_delta:
             expire = datetime.utcnow() + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
+            expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.SECRET_KEY, algorithm=self.ALGORITHM)
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
-    
-    async def get_current_admin(self, token: str = Depends(oauth2_scheme)):
-        """
-        Get current admin.
-
-        :param token: token of admin.
-        :return: admin model.
-        """
-        credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        try:
-            payload = jwt.decode(token, self.SECRET_KEY, algorithms=[self.ALGORITHM])
-            email: str = payload.get("sub")
-            if email is None:
-                raise credentials_exception
-            token_data = TokenData(email=email)
-        except JWTError:
-            raise credentials_exception
-        admin = await self.get_admin(email=token_data.email)
-        if admin is None:
-            raise credentials_exception
-        return await admin
-    
-    async def get_current_active_admin(current_admin: AdminShow = Depends(get_current_admin)):
-        """
-        Get current active admin.
-
-        :param current_admin: admin model.
-        :return: admin model.
-        """
-        if current_admin.disabled:
-            raise HTTPException(status_code=400, detail="Inactive user")
-        return await current_admin
 
     async def create_admin_model(self, name: str, email: str, password: str) -> None:
         """
@@ -246,4 +211,40 @@ class AdminDAO:
             select(AdminModel).where(AdminModel.email == email),
         )
 
-        return raw_admin.scalars().first()  
+        return raw_admin.scalars().first()
+    
+
+async def get_current_admin(token: str = Depends(oauth2_scheme), admin_dao: AdminDAO = Depends()):
+    """
+    Get current admin.
+    :param token: token of admin.
+    :return: admin model.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise credentials_exception
+        token_data = TokenData(email=email)
+    except JWTError:
+        raise credentials_exception
+    admin = await admin_dao.get_admin(email=token_data.username)
+    if admin is None:
+        raise credentials_exception
+    return await admin
+
+
+async def get_current_active_admin(current_admin: AdminShow = Depends(get_current_admin)):
+    """
+    Get current active admin.
+    :param current_admin: admin model.
+    :return: admin model.
+    """
+    if current_admin.disabled:
+        raise HTTPException(status_code=400, detail="Inactive user")
+    return await current_admin
