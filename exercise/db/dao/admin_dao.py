@@ -37,9 +37,24 @@ class AdminDAO:
         """
         return pwd_context.hash(password)
     
-    async def get_admin(self, email: str):
+    # function to get admin by id
+    async def get_admin_by_id(self, admin_id: int) -> AdminModel:
         """
-        Get admin model by email.
+        Get admin by id.
+
+        :param admin_id: id of admin.
+        :return: admin model.
+        """
+        raw_admin = await self.session.execute(
+            select(AdminModel).where(AdminModel.id == admin_id),
+        )
+
+        return raw_admin.scalars().first()
+    
+    # function to get admin by email
+    async def get_admin_by_email(self, email: str) -> AdminModel:
+        """
+        Get admin by email.
 
         :param email: email of admin.
         :return: admin model.
@@ -47,7 +62,7 @@ class AdminDAO:
         raw_admin = await self.session.execute(
             select(AdminModel).where(AdminModel.email == email),
         )
-        
+
         return raw_admin.scalars().first()
     
     async def create_admin_model(self, name: str, email: str, password: str) -> None:
@@ -141,31 +156,3 @@ class AdminDAO:
         :param admin_id: id of admin.
         """
         await self.session.execute(delete(AdminModel).where(AdminModel.id == admin_id))
-        
-    # function to get admin by id
-    async def get_admin_by_id(self, admin_id: int) -> AdminModel:
-        """
-        Get admin by id.
-
-        :param admin_id: id of admin.
-        :return: admin model.
-        """
-        raw_admin = await self.session.execute(
-            select(AdminModel).where(AdminModel.id == admin_id),
-        )
-
-        return raw_admin.scalars().first()
-    
-    # function to get admin by email
-    async def get_admin_by_email(self, email: str) -> AdminModel:
-        """
-        Get admin by email.
-
-        :param email: email of admin.
-        :return: admin model.
-        """
-        raw_admin = await self.session.execute(
-            select(AdminModel).where(AdminModel.email == email),
-        )
-
-        return raw_admin.scalars().first()

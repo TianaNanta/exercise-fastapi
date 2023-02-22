@@ -15,10 +15,11 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_time
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/admin/login")
 
+# function for authentication of an admin
 async def authenticate_admin(
     email: str,
     password: str,
-    admin_dao: AdminDAO = Depends(),
+    admin_dao: AdminDAO = Depends()
     ):
     """
     Authenticate admin.
@@ -26,10 +27,10 @@ async def authenticate_admin(
     :param password: password of admin.
     :return: admin model.
     """
-    admin = await admin_dao.get_admin(email)
+    admin = await admin_dao.get_admin_by_email(email=email)
     if not admin:
         return False
-    if not admin_dao.verify_password(password, admin.hashed_password):
+    if not admin_dao.verify_password(password, admin.password):
         return False
     return admin
 
